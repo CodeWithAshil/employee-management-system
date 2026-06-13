@@ -26,14 +26,31 @@ Request flow must ALWAYS follow **Controller → Service → Repository**. Never
 controller     REST endpoints
 service        Service interfaces
 service.impl   Service implementations
-repository     Spring Data JPA repositories
-entity         JPA entities
+repository     Spring Data JPA repositories (Employee, Role, Department)
+entity         JPA entities (Employee, Role, Department) + enums
 dto            Request/response DTOs
 exception      GlobalExceptionHandler, custom exceptions, ErrorResponse
-config         Infrastructure config beans
+config         Infrastructure config beans (JpaAuditingConfig)
 security       SecurityConfig
 util           Mappers / helpers
 ```
+
+## Data model
+
+- **Employee** (`@ManyToOne` → Role and Department, both `nullable=false`, `LAZY`):
+  id, firstName, lastName, email (unique), phoneNumber, salary (`BigDecimal`),
+  joiningDate (`LocalDate`), status (`EmployeeStatus`), createdAt, updatedAt.
+- **Department** (`@OneToMany mappedBy="department"`): id, departmentName,
+  departmentCode (unique).
+- **Role** (`@OneToMany mappedBy="role"`): id, roleName (`RoleName`).
+- Enums: `EmployeeStatus { ACTIVE, INACTIVE }`, `RoleName { ADMIN, HR, EMPLOYEE }`,
+  stored as `@Enumerated(EnumType.STRING)`.
+- Auditing: `@EnableJpaAuditing` (JpaAuditingConfig) + `@EntityListeners(AuditingEntityListener.class)`
+  with `@CreatedDate` / `@LastModifiedDate`.
+- Entities use `@Getter/@Setter` + `@Builder` (NOT `@Data`) and `@ToString.Exclude`
+  on relationship fields to avoid infinite recursion. Collections use `@Builder.Default`.
+- The service resolves `roleId` / `departmentId` from the DTO via RoleRepository /
+  DepartmentRepository (404 if missing), then `EmployeeMapper.toEntity(request, role, department)`.
 
 ## Conventions
 
@@ -53,8 +70,9 @@ util           Mappers / helpers
 
 ```bash
 mvn clean compile     # compile
-mvn test              # run all tests
-mvn spring-boot:run   # run the app (needs MySQL configured)
+mvn test              # run all tests (15 tests)
+# Run the app (MySQL must be running; set DB_USERNAME / DB_PASSWORD first):
+DB_USERNAME=root DB_PASSWORD=<pwd> mvn spring-boot:run
 ```
 
 ## Testing approach
@@ -68,6 +86,12 @@ mvn spring-boot:run   # run the app (needs MySQL configured)
 ## Notes
 
 - DB config is in `src/main/resources/application.properties` (MySQL,
-  `ddl-auto=update`). Credentials default to `root`/`root` — adjust locally.
-- Security is HTTP Basic + stateless; Spring prints a generated dev password on
-  startup unless users are configured in `SecurityConfig`.
+  `ddl-auto=update`). Credentials are externalized as `${DB_USERNAME:root}` /
+  `${DB_PASSWORD:}` — never hardcode secrets here; see `.env.example`.
+- Security is HTTP Basic + stateless. An in-memory user is defined in
+  `SecurityConfig` (default `admin` / `admin123`, override via
+  `app.security.username` / `app.security.password`). IMPORTANT: because a
+  `BCryptPasswordEncoder` bean exists, the in-memory user's password is encoded
+  with it — Spring Boot's auto-generated default password does NOT work for login.
+- Verified working end-to-end against live MySQL: full CRUD, auth (401), validation
+  (400), duplicate (409), not-found (404), JPA auditing timestamps.

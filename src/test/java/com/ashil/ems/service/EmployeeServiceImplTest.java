@@ -2,10 +2,16 @@ package com.ashil.ems.service;
 
 import com.ashil.ems.dto.EmployeeRequest;
 import com.ashil.ems.dto.EmployeeResponse;
+import com.ashil.ems.entity.Department;
 import com.ashil.ems.entity.Employee;
+import com.ashil.ems.entity.EmployeeStatus;
+import com.ashil.ems.entity.Role;
+import com.ashil.ems.entity.RoleName;
 import com.ashil.ems.exception.DuplicateResourceException;
 import com.ashil.ems.exception.ResourceNotFoundException;
+import com.ashil.ems.repository.DepartmentRepository;
 import com.ashil.ems.repository.EmployeeRepository;
+import com.ashil.ems.repository.RoleRepository;
 import com.ashil.ems.service.impl.EmployeeServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -15,6 +21,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -32,20 +40,35 @@ class EmployeeServiceImplTest {
     @Mock
     private EmployeeRepository employeeRepository;
 
+    @Mock
+    private RoleRepository roleRepository;
+
+    @Mock
+    private DepartmentRepository departmentRepository;
+
     @InjectMocks
     private EmployeeServiceImpl employeeService;
 
     private EmployeeRequest request;
     private Employee employee;
+    private Role role;
+    private Department department;
 
     @BeforeEach
     void setUp() {
+        role = Role.builder().id(1L).roleName(RoleName.EMPLOYEE).build();
+        department = Department.builder().id(1L).departmentName("Engineering").departmentCode("ENG").build();
+
         request = EmployeeRequest.builder()
                 .firstName("John")
                 .lastName("Doe")
                 .email("john.doe@example.com")
-                .department("Engineering")
-                .designation("Developer")
+                .phoneNumber("+12345678901")
+                .salary(new BigDecimal("75000.00"))
+                .joiningDate(LocalDate.of(2024, 1, 15))
+                .status(EmployeeStatus.ACTIVE)
+                .roleId(1L)
+                .departmentId(1L)
                 .build();
 
         employee = Employee.builder()
@@ -53,24 +76,33 @@ class EmployeeServiceImplTest {
                 .firstName("John")
                 .lastName("Doe")
                 .email("john.doe@example.com")
-                .department("Engineering")
-                .designation("Developer")
+                .phoneNumber("+12345678901")
+                .salary(new BigDecimal("75000.00"))
+                .joiningDate(LocalDate.of(2024, 1, 15))
+                .status(EmployeeStatus.ACTIVE)
+                .role(role)
+                .department(department)
                 .build();
     }
 
     @Test
     void create_shouldSaveAndReturnResponse() {
         when(employeeRepository.existsByEmail(request.getEmail())).thenReturn(false);
+        when(roleRepository.findById(1L)).thenReturn(Optional.of(role));
+        when(departmentRepository.findById(1L)).thenReturn(Optional.of(department));
         when(employeeRepository.save(any(Employee.class))).thenReturn(employee);
 
         EmployeeResponse response = employeeService.create(request);
 
         assertThat(response.getId()).isEqualTo(1L);
         assertThat(response.getEmail()).isEqualTo("john.doe@example.com");
+        assertThat(response.getRoleName()).isEqualTo(RoleName.EMPLOYEE);
+        assertThat(response.getDepartmentCode()).isEqualTo("ENG");
 
         ArgumentCaptor<Employee> captor = ArgumentCaptor.forClass(Employee.class);
         verify(employeeRepository).save(captor.capture());
-        assertThat(captor.getValue().getFirstName()).isEqualTo("John");
+        assertThat(captor.getValue().getRole()).isEqualTo(role);
+        assertThat(captor.getValue().getDepartment()).isEqualTo(department);
     }
 
     @Test
@@ -80,6 +112,18 @@ class EmployeeServiceImplTest {
         assertThatThrownBy(() -> employeeService.create(request))
                 .isInstanceOf(DuplicateResourceException.class)
                 .hasMessageContaining(request.getEmail());
+
+        verify(employeeRepository, never()).save(any());
+    }
+
+    @Test
+    void create_shouldThrowWhenRoleMissing() {
+        when(employeeRepository.existsByEmail(request.getEmail())).thenReturn(false);
+        when(roleRepository.findById(1L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> employeeService.create(request))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Role not found");
 
         verify(employeeRepository, never()).save(any());
     }
@@ -113,21 +157,27 @@ class EmployeeServiceImplTest {
 
     @Test
     void update_shouldModifyAndReturnResponse() {
+        when(employeeRepository.findById(1L)).thenReturn(Optional.of(employee));
+        when(roleRepository.findById(1L)).thenReturn(Optional.of(role));
+        when(departmentRepository.findById(1L)).thenReturn(Optional.of(department));
+        when(employeeRepository.save(any(Employee.class))).thenAnswer(inv -> inv.getArgument(0));
+
         EmployeeRequest updateRequest = EmployeeRequest.builder()
                 .firstName("Jane")
                 .lastName("Smith")
                 .email("jane.smith@example.com")
-                .department("HR")
-                .designation("Manager")
+                .salary(new BigDecimal("90000.00"))
+                .joiningDate(LocalDate.of(2023, 6, 1))
+                .status(EmployeeStatus.INACTIVE)
+                .roleId(1L)
+                .departmentId(1L)
                 .build();
-
-        when(employeeRepository.findById(1L)).thenReturn(Optional.of(employee));
-        when(employeeRepository.save(any(Employee.class))).thenAnswer(inv -> inv.getArgument(0));
 
         EmployeeResponse response = employeeService.update(1L, updateRequest);
 
         assertThat(response.getFirstName()).isEqualTo("Jane");
-        assertThat(response.getEmail()).isEqualTo("jane.smith@example.com");
+        assertThat(response.getStatus()).isEqualTo(EmployeeStatus.INACTIVE);
+        assertThat(response.getSalary()).isEqualByComparingTo("90000.00");
     }
 
     @Test

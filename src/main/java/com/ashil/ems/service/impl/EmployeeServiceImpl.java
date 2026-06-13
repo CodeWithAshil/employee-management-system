@@ -2,10 +2,14 @@ package com.ashil.ems.service.impl;
 
 import com.ashil.ems.dto.EmployeeRequest;
 import com.ashil.ems.dto.EmployeeResponse;
+import com.ashil.ems.entity.Department;
 import com.ashil.ems.entity.Employee;
+import com.ashil.ems.entity.Role;
 import com.ashil.ems.exception.DuplicateResourceException;
 import com.ashil.ems.exception.ResourceNotFoundException;
+import com.ashil.ems.repository.DepartmentRepository;
 import com.ashil.ems.repository.EmployeeRepository;
+import com.ashil.ems.repository.RoleRepository;
 import com.ashil.ems.service.EmployeeService;
 import com.ashil.ems.util.EmployeeMapper;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +26,8 @@ import java.util.Optional;
 public class EmployeeServiceImpl implements EmployeeService {
 
     private final EmployeeRepository employeeRepository;
+    private final RoleRepository roleRepository;
+    private final DepartmentRepository departmentRepository;
 
     @Override
     @Transactional
@@ -30,7 +36,9 @@ public class EmployeeServiceImpl implements EmployeeService {
         if (employeeRepository.existsByEmail(request.getEmail())) {
             throw new DuplicateResourceException("Employee already exists with email: " + request.getEmail());
         }
-        Employee saved = employeeRepository.save(EmployeeMapper.toEntity(request));
+        Role role = findRole(request.getRoleId());
+        Department department = findDepartment(request.getDepartmentId());
+        Employee saved = employeeRepository.save(EmployeeMapper.toEntity(request, role, department));
         return EmployeeMapper.toResponse(saved);
     }
 
@@ -54,11 +62,20 @@ public class EmployeeServiceImpl implements EmployeeService {
     public EmployeeResponse update(Long id, EmployeeRequest request) {
         log.info("Updating employee {}", id);
         Employee employee = findEmployee(id);
+        Role role = findRole(request.getRoleId());
+        Department department = findDepartment(request.getDepartmentId());
+
         employee.setFirstName(request.getFirstName());
         employee.setLastName(request.getLastName());
         employee.setEmail(request.getEmail());
-        employee.setDepartment(request.getDepartment());
-        employee.setDesignation(request.getDesignation());
+        employee.setPhoneNumber(request.getPhoneNumber());
+        employee.setSalary(request.getSalary());
+        employee.setJoiningDate(request.getJoiningDate());
+        if (request.getStatus() != null) {
+            employee.setStatus(request.getStatus());
+        }
+        employee.setRole(role);
+        employee.setDepartment(department);
         return EmployeeMapper.toResponse(employeeRepository.save(employee));
     }
 
@@ -73,5 +90,15 @@ public class EmployeeServiceImpl implements EmployeeService {
     private Employee findEmployee(Long id) {
         return employeeRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee not found with id: " + id));
+    }
+
+    private Role findRole(Long id) {
+        return roleRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Role not found with id: " + id));
+    }
+
+    private Department findDepartment(Long id) {
+        return departmentRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Department not found with id: " + id));
     }
 }

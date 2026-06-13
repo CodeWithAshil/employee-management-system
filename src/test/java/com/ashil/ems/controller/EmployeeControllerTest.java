@@ -2,6 +2,8 @@ package com.ashil.ems.controller;
 
 import com.ashil.ems.dto.EmployeeRequest;
 import com.ashil.ems.dto.EmployeeResponse;
+import com.ashil.ems.entity.EmployeeStatus;
+import com.ashil.ems.entity.RoleName;
 import com.ashil.ems.security.SecurityConfig;
 import com.ashil.ems.service.EmployeeService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -14,6 +16,9 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -45,26 +50,43 @@ class EmployeeControllerTest {
                 .firstName("John")
                 .lastName("Doe")
                 .email("john.doe@example.com")
-                .department("Engineering")
-                .designation("Developer")
+                .phoneNumber("+12345678901")
+                .salary(new BigDecimal("75000.00"))
+                .joiningDate(LocalDate.of(2024, 1, 15))
+                .status(EmployeeStatus.ACTIVE)
+                .roleName(RoleName.EMPLOYEE)
+                .departmentName("Engineering")
+                .departmentCode("ENG")
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build();
+    }
+
+    private EmployeeRequest validRequest() {
+        return EmployeeRequest.builder()
+                .firstName("John")
+                .lastName("Doe")
+                .email("john.doe@example.com")
+                .phoneNumber("+12345678901")
+                .salary(new BigDecimal("75000.00"))
+                .joiningDate(LocalDate.of(2024, 1, 15))
+                .status(EmployeeStatus.ACTIVE)
+                .roleId(1L)
+                .departmentId(1L)
                 .build();
     }
 
     @Test
     void create_shouldReturn201() throws Exception {
-        EmployeeRequest request = EmployeeRequest.builder()
-                .firstName("John")
-                .lastName("Doe")
-                .email("john.doe@example.com")
-                .build();
         when(employeeService.create(any(EmployeeRequest.class))).thenReturn(sampleResponse());
 
         mockMvc.perform(post("/api/v1/employees")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(objectMapper.writeValueAsString(validRequest())))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value(1))
-                .andExpect(jsonPath("$.email").value("john.doe@example.com"));
+                .andExpect(jsonPath("$.roleName").value("EMPLOYEE"))
+                .andExpect(jsonPath("$.departmentCode").value("ENG"));
     }
 
     @Test
@@ -88,7 +110,8 @@ class EmployeeControllerTest {
 
         mockMvc.perform(get("/api/v1/employees/{id}", 1L))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.firstName").value("John"));
+                .andExpect(jsonPath("$.firstName").value("John"))
+                .andExpect(jsonPath("$.status").value("ACTIVE"));
     }
 
     @Test
