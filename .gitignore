@@ -8,6 +8,13 @@ build/
 out/
 target/
 
+# Maven
+.mvn/
+!.mvn/wrapper/maven-wrapper.jar
+
+# Logs directory
+logs/
+
 # Environment & secrets
 .env
 .env.*
